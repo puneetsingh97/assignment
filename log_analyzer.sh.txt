@@ -1,0 +1,52 @@
+#log_analyzer.sh
+
+#!/bin/bash
+
+ERROR_SUMMARY=error_summary_$(date +%Y-%m-%d_%H:%M:%S).log
+ERROR_REPORT=error_report_$(date +%Y-%m-%d_%H:%M:%S).txt
+OLD_LOGS=old_logs_$(date +%Y-%m-%d_%H:%M:%S).tar.gz
+DIR=/var/log/archive
+SCRIPT_LOG=/scripts/script.log
+
+echo "Log Analyzer started $(date)."  >> $SCRIPT_LOG
+grep -Er 'ERROR|FATAL' /var/log/custom_logs/*.log > $ERROR_SUMMARY
+sleep 60
+
+echo "Summary file being generated DONE!" >> $SCRIPT_LOG
+
+echo "Error report being generated." >> $SCRIPT_LOG
+grep ERROR $ERROR_SUMMARY | uniq -c > $ERROR_REPORT
+echo "DONE!" >> $SCRIPT_LOG
+
+echo "Old logs being backed up." >> $SCRIPT_LOG
+find /var/log/custom_logs -name *.log -type f -mtime +7 -exec tar -cvfz $OLD_LOGS {} \;
+
+if [[ ! -e $DIR ]]; then
+    mkdir $DIR
+elif [[ ! -d $DIR ]]; then
+    echo "$DIR already exists but is not a directory" 1>&2>> $SCRIPT_LOG
+fi
+
+mv  /var/log/archive
+echo "DONE!" >> $SCRIPT_LOG
+
+echo "Removing obsolete logs." >> $SCRIPT_LOG
+find /var/log/archive -name *.tar.gz -type f -mtime +30 -exec rm -rf {} \;
+echo "DONE!" >> $SCRIPT_LOG
+
+echo "Sending E-mail to Admin" >> $SCRIPT_LOG
+email -s "FATAL error is detected!" admin@localhost.localdomain < $(grep FATAL /var/log/error_summary.log | uniq -c)
+echo "DONE!" >> $SCRIPT_LOG
+
+echo "Log Analyzer finished $(date)."  >> $SCRIPT_LOG
+
+
+
+
+CRONJOB
+*******
+
+crobtab -e
+
+01 00 * * * bash /scripts/log_analyzer.sh
+
